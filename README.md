@@ -1,3 +1,10 @@
+> [!NOTE]
+> 這是繁體中文翻譯測試分支
+> This fork is used for testing zh-tw translation.
+
+
+---
+
 # AniSync
 
 <p align="center">
