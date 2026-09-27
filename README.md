@@ -2,6 +2,7 @@
 > 這是繁體中文翻譯測試分支
 > This fork is used for testing zh-tw translation.
 
+[![翻譯狀態](https://hosted.weblate.org/widget/anisync/-/zh_Hant/multi-auto.svg)](https://hosted.weblate.org/engage/anisync/)
 
 ---
 
