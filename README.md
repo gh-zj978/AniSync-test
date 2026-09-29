@@ -6,6 +6,7 @@
 
 
 *還在調整與改進中*
+[![Build Manual Debug APK](https://github.com/gh-zj978/AniSync-test/actions/workflows/build-manual-debug.yml/badge.svg)](https://github.com/gh-zj978/AniSync-test/actions/workflows/build-manual-debug.yml)
 
 ---
 
