@@ -4,6 +4,9 @@
 
 [![翻譯狀態](https://hosted.weblate.org/widget/anisync/-/zh_Hant/multi-auto.svg)](https://hosted.weblate.org/engage/anisync/)
 
+
+*還在調整與改進中*
+
 ---
 
 # AniSync
