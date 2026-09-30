@@ -31,7 +31,7 @@ jobs:
       - name: Build Debug APK
         run: |
           chmod +x gradlew
-          ./gradlew assembleStableDebug
+          ./gradlew assembleStableDebug -Dorg.gradle.jvmargs="-Xmx3072m"
 
       - name: Resolve APK file names
         shell: bash
