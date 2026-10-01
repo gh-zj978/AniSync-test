@@ -1594,7 +1594,7 @@
     <string name="widget_calendar_title">週表</string>
     <string name="widget_episode_short">第 %1$d 集</string>
     <string name="widget_episode_long">第 %1$d 集</string>
-    <string name="widget_up_next_empty_title">全跟上啦(⁠≧⁠▽⁠≦⁠)</string>
+    <string name="widget_up_next_empty_title">全跟上啦~</string>
     <string name="widget_watch_progress_title">現正進行</string>
     <string name="widget_episode_badge">第 %1$d 集</string>
     <string name="widget_up_next_title">待看</string>
