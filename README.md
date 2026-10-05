@@ -1,12 +1,11 @@
 > [!NOTE]
-> 這是繁體中文翻譯測試分支
-> This fork is used for testing zh-tw translation.
+> 这是简体中文测试分支
+> This fork is used for testing zh-cn translation.
 
-[![翻譯狀態](https://hosted.weblate.org/widget/anisync/-/zh_Hant/multi-auto.svg)](https://hosted.weblate.org/engage/anisync/)
 
 
 *還在調整與改進中*
-[![Build Manual Debug APK](https://github.com/gh-zj978/AniSync-test/actions/workflows/build-manual-debug.yml/badge.svg)](https://github.com/gh-zj978/AniSync-test/actions/workflows/build-manual-debug.yml)
+
 
 ---
 
