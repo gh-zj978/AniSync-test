@@ -1488,5 +1488,6 @@ enum class AppLocale(val tag: String, val displayName: String) {
     RUSSIAN("ru", "Русский"),
     TAMIL("ta", "தமிழ்"),
     INDONESIAN("id", "Bahasa Indonesia"),
-    CHINESE_TW("zh-TW", "繁體中文")
+    CHINESE_TW("zh-TW", "繁體中文")，
+    CHINESE_CN("zh-CN", "简体中文")
 }
