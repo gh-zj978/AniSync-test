@@ -128,12 +128,6 @@ private val libraries = listOf(
         url = "https://github.com/Calvin-LL/Reorderable"
     ),
     OpenSourceLibrary(
-        name = "LeakCanary",
-        version = "2.14",
-        license = "Apache License 2.0",
-        url = "https://square.github.io/leakcanary"
-    ),
-    OpenSourceLibrary(
         name = "Security Crypto",
         version = "1.1.0",
         license = "Apache License 2.0",
