@@ -1,7 +1,7 @@
-**中文翻譯用測試分支**
-
-[![翻譯狀態](https://hosted.weblate.org/widget/anisync/-/zh_Hant/multi-auto.svg)](https://hosted.weblate.org/engage/anisync/)
-[![翻譯狀態](https://hosted.weblate.org/widget/anisync/-/zh_Hans/multi-auto.svg)](https://hosted.weblate.org/engage/anisync/)
+> [!NOTE]
+> **中文翻譯用測試分支**
+> [![翻譯狀態](https://hosted.weblate.org/widget/anisync/-/zh_Hant/multi-auto.svg)](https://hosted.weblate.org/engage/anisync/)
+> [![翻譯狀態](https://hosted.weblate.org/widget/anisync/-/zh_Hans/multi-auto.svg)](https://hosted.weblate.org/engage/anisync/)
 
 
 
