@@ -1,3 +1,12 @@
+中文翻譯測試分支
+
+
+
+
+----
+
+
+
 # AniSync
 
 <p align="center">
