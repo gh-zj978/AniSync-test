@@ -1,6 +1,6 @@
 中文翻譯測試分支
-
-
+中文繁體：[![翻譯狀態](https://hosted.weblate.org/widget/anisync/-/zh_Hant/svg-badge.svg)](https://hosted.weblate.org/engage/anisync/)
+中文简体：[![翻譯狀態](https://hosted.weblate.org/widget/anisync/-/zh_Hans/svg-badge.svg)](https://hosted.weblate.org/engage/anisync/)
 
 
 ----
