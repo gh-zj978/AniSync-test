@@ -1,5 +1,5 @@
 > [!NOTE]
-> 此為中文翻译測試分支
+> 此為中文翻譯測試分支
 > 
 > 繁體：[![翻譯狀態](https://hosted.weblate.org/widget/anisync/app/zh_Hant/svg-badge.svg)](https://hosted.weblate.org/engage/anisync/)
 > 
