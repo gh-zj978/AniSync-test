@@ -1,3 +1,10 @@
+> [!NOTE]
+> 此為中文翻译測試分支
+> 
+>
+>
+
+
 # AniSync
 
 <p align="center">
