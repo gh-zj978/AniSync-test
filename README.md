@@ -1,3 +1,17 @@
+> [!NOTE]
+> 此為中文翻譯測試分支
+> 
+> 繁體：[![翻譯狀態](https://hosted.weblate.org/widget/anisync/app/zh_Hant/svg-badge.svg)](https://hosted.weblate.org/engage/anisync/)
+> 
+> 简体：[![翻譯狀態](https://hosted.weblate.org/widget/anisync/app/zh_Hans/svg-badge.svg)](https://hosted.weblate.org/engage/anisync/)
+> 
+> 
+> [![Build Manual Debug APK](https://github.com/gh-zj978/AniSync-test/actions/workflows/build-manual-debug.yml/badge.svg)](https://github.com/gh-zj978/AniSync-test/actions/workflows/build-manual-debug.yml)
+> 
+
+---
+
+
 # AniSync
 
 <p align="center">
