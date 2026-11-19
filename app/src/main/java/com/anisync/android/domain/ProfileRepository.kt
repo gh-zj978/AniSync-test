@@ -16,6 +16,13 @@ data class ProfileRefreshTimings(
     val favoritesPageCount: Int
 )
 
+/** A profile and whether its activities, which come from a second request, failed to load with it. */
+data class LoadedProfile(
+    val profile: UserProfile,
+    val activitiesFailed: Boolean,
+    val timings: ProfileRefreshTimings
+)
+
 /**
  * Caller-controlled cache policy. Lets callers choose between hitting Apollo's
  * normalized cache and bypassing it without leaking the Apollo `FetchPolicy`
@@ -62,13 +69,13 @@ interface ProfileRepository {
     /**
      * Same as [refreshProfile] but also returns per-phase timings.
      */
-    suspend fun refreshProfileTimed(username: String, forceNetwork: Boolean = true): Result<ProfileRefreshTimings>
+    suspend fun refreshProfileTimed(username: String, forceNetwork: Boolean = true): Result<LoadedProfile>
 
     /**
      * Fetch user profile without saving it to the local cache. [forceNetwork]
      * behaves the same as in [refreshProfile].
      */
-    suspend fun fetchUserProfile(username: String, forceNetwork: Boolean = true): Result<UserProfile>
+    suspend fun fetchUserProfile(username: String, forceNetwork: Boolean = true): Result<LoadedProfile>
 
     /**
      * Update user's about section.
@@ -81,7 +88,8 @@ interface ProfileRepository {
     suspend fun getSocialData(
         userId: Int,
         page: Int = 1,
-        policy: CachePolicy = CachePolicy.NetworkFirst
+        policy: CachePolicy = CachePolicy.NetworkFirst,
+        sort: com.anisync.android.type.UserSort? = null
     ): Result<UserSocialPage>
 
     /**
@@ -153,6 +161,16 @@ interface ProfileRepository {
         policy: CachePolicy = CachePolicy.NetworkFirst
     ): Result<List<LibraryEntry>>
 
+    /** Following and follower totals alone, for the header. */
+    suspend fun getPeopleCounts(userId: Int): Result<Pair<Int?, Int?>>
+
+    /** The profile carries 25 of each favourite kind, this pages through the rest. */
+    suspend fun getFavoritesOfKind(
+        userId: Int,
+        kind: FavoriteKind,
+        policy: CachePolicy = CachePolicy.NetworkFirst
+    ): Result<FavoriteKindItems>
+
     /**
      * Fetch user's anime list.
      */
@@ -173,3 +191,13 @@ interface ProfileRepository {
         id: Int? = null
     ): Result<Unit>
 }
+
+enum class FavoriteKind { MANGA, CHARACTERS, STAFF, STUDIOS }
+
+/** Every favourite of one kind, in the owner's order. Only the requested kind is filled. */
+data class FavoriteKindItems(
+    val manga: List<LibraryEntry> = emptyList(),
+    val characters: List<CharacterInfo> = emptyList(),
+    val staff: List<StaffDetails> = emptyList(),
+    val studios: List<StudioInfo> = emptyList()
+)
