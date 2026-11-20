@@ -26,6 +26,7 @@ import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.foundation.text.input.clearText
+import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
@@ -82,6 +83,7 @@ import com.anisync.android.domain.LibraryEntry
 import com.anisync.android.presentation.components.AppPullToRefreshBox
 import com.anisync.android.presentation.components.EmbeddedFullScreenSearchBar
 import com.anisync.android.presentation.components.HideKeyboardOnCollapse
+import com.anisync.android.presentation.components.RecentSearches
 import com.anisync.android.presentation.components.SearchBarAnchor
 import com.anisync.android.presentation.components.searchBarAnchor
 import com.anisync.android.presentation.components.rememberSearchFieldCollapse
@@ -126,6 +128,7 @@ import com.anisync.android.presentation.discover.components.FilterId
 import com.anisync.android.presentation.discover.components.SearchFilterChipBar
 import com.anisync.android.presentation.discover.components.SearchFilterSheetHost
 import com.anisync.android.presentation.discover.components.SearchResultActions
+import com.anisync.android.presentation.discover.components.beforeEach
 import com.anisync.android.presentation.discover.components.SearchResultsRail
 import com.anisync.android.presentation.settings.components.InfoNotice
 
@@ -930,6 +933,7 @@ private fun DiscoverSearchOverlay(
 ) {
     var openedFilter by remember { mutableStateOf<FilterId?>(null) }
     val category = state.activeCategory
+    val focusManager = LocalFocusManager.current
 
     val fieldCollapse = rememberSearchFieldCollapse(searchBarState)
     // A spinner, an error or an empty result has nothing to scroll, so nothing else could bring
@@ -942,8 +946,6 @@ private fun DiscoverSearchOverlay(
     EmbeddedFullScreenSearchBar(
         state = searchBarState,
         anchor = searchAnchor,
-        // On background rather than surfaceContainerHigh, so the result cards keep their contrast.
-        colors = SearchBarDefaults.colors(containerColor = MaterialTheme.colorScheme.background),
         inputField = {
             SearchInputField(
                 searchBarState = searchBarState,
@@ -960,7 +962,7 @@ private fun DiscoverSearchOverlay(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .then(fieldCollapse.content(topInset, MaterialTheme.colorScheme.background))
+                .then(fieldCollapse.content(topInset, SearchBarDefaults.colors().containerColor))
         ) {
             // Characters, staff, users and studios are found by name alone, so the media
             // filters would have nothing to narrow there.
@@ -989,6 +991,11 @@ private fun DiscoverSearchOverlay(
                 titleLanguage = titleLanguage,
                 onAction = onAction,
                 actions = actions,
+                onRecentSearch = { query ->
+                    textFieldState.setTextAndPlaceCursorAtEnd(query)
+                    focusManager.clearFocus()
+                    onAction(DiscoverAction.OnSearch(query))
+                },
                 resultsModifier = Modifier.nestedScroll(fieldCollapse.nestedScrollConnection)
             )
         }
@@ -1022,6 +1029,7 @@ private fun SearchResultsContent(
     titleLanguage: com.anisync.android.data.TitleLanguage,
     onAction: (DiscoverAction) -> Unit,
     actions: SearchResultActions,
+    onRecentSearch: (String) -> Unit,
     resultsModifier: Modifier = Modifier
 ) {
     val category = state.activeCategory
@@ -1030,7 +1038,8 @@ private fun SearchResultsContent(
         // A preset can open on a category before anything is typed, and the rail says so.
         if (state.hasSearchResults || category != ResultCategory.ALL) {
             SearchResultsRail(
-                modifier = Modifier.padding(bottom = 8.dp),
+                // Without the filter bar above it, the rail keeps the bar's distance from the divider.
+                modifier = Modifier.padding(top = if (category.hasMediaFilters()) 0.dp else 16.dp, bottom = 8.dp),
                 categories = state.railCategories,
                 activeCategory = category,
                 isGrid = isGrid,
@@ -1069,13 +1078,19 @@ private fun SearchResultsContent(
                     }
                 }
 
-                !state.hasSearchResults -> {
-                    if (state.searchQuery.isNotEmpty() || state.searchFilters.hasActiveFilters) {
+                !state.hasSearchResults -> when {
+                    state.searchQuery.isNotEmpty() || state.searchFilters.hasActiveFilters ->
                         DiscoverNoResultsState(
                             hasFilters = state.searchFilters.hasNarrowingFilters,
                             onClearFilters = { onAction(DiscoverAction.ClearFilters) }
                         )
-                    }
+
+                    state.recentSearches.isNotEmpty() -> RecentSearches(
+                        searches = state.recentSearches,
+                        onSearch = onRecentSearch,
+                        onRemove = { onAction(DiscoverAction.RemoveRecentSearch(it)) },
+                        onClearAll = { onAction(DiscoverAction.ClearRecentSearches) }
+                    )
                 }
 
                 // Expanded widths open a result in a detail pane beside the list, compact and
@@ -1135,6 +1150,7 @@ private fun SearchResults(
     modifier: Modifier = Modifier,
     selected: SearchTarget? = null
 ) {
+    val query = state.searchQuery
     com.anisync.android.presentation.discover.components.SearchResults(
         activeCategory = state.activeCategory,
         isGrid = isGrid,
@@ -1143,7 +1159,7 @@ private fun SearchResults(
         grouped = state.groupedResults,
         paging = state.searchPaging,
         titleLanguage = titleLanguage,
-        actions = actions,
+        actions = actions.beforeEach { onAction(DiscoverAction.SaveRecentSearch(query)) },
         onShowAll = { onAction(DiscoverAction.OnCategoryChange(it)) },
         onLoadMore = { onAction(DiscoverAction.LoadMoreResults) },
         modifier = modifier,

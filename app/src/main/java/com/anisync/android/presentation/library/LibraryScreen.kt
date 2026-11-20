@@ -42,6 +42,7 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.foundation.text.input.rememberTextFieldState
+import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
@@ -318,10 +319,15 @@ fun LibraryScreen(
         }
     }
 
+    val saveRecentSearch: () -> Unit = remember(viewModel, textFieldState) {
+        { viewModel.onAction(LibraryAction.SaveRecentSearch(textFieldState.text.toString())) }
+    }
+
     // The result opens over the search, which stays open for back to return to. Dropping focus
     // keeps the keyboard closed when it does.
-    val onSearchResultClick: (Int) -> Unit = remember(onMediaClick, focusManager) {
+    val onSearchResultClick: (Int) -> Unit = remember(onMediaClick, focusManager, saveRecentSearch) {
         { id ->
+            saveRecentSearch()
             focusManager.clearFocus()
             onMediaClick(id)
         }
@@ -346,6 +352,7 @@ fun LibraryScreen(
                 coroutineScope.launch { searchBarState.animateToCollapsed() }
             },
             onClearClick = { textFieldState.edit { replace(0, length, "") } },
+            onSearch = { viewModel.onAction(LibraryAction.OnSearch(textFieldState.text.toString())) },
             onToggleView = {
                 viewModel.onAction(LibraryAction.SetGridView(!isGridView))
             },
@@ -677,8 +684,6 @@ fun LibraryScreen(
     EmbeddedFullScreenSearchBar(
         state = searchBarState,
         anchor = searchAnchor,
-        // On background rather than surfaceContainerHigh, so the cards keep their contrast.
-        colors = SearchBarDefaults.colors(containerColor = MaterialTheme.colorScheme.background),
         inputField = {
             Box(modifier = fieldCollapse.field, propagateMinConstraints = true) { inputField() }
         }
@@ -687,7 +692,7 @@ fun LibraryScreen(
         LibrarySearchOverlay(
             modifier = fieldCollapse.content(
                 topInset = WindowInsets.safeDrawing.getTop(LocalDensity.current),
-                background = MaterialTheme.colorScheme.background
+                background = SearchBarDefaults.colors().containerColor
             ),
             resultsModifier = Modifier.nestedScroll(fieldCollapse.nestedScrollConnection),
             uiState = uiState,
@@ -698,8 +703,15 @@ fun LibraryScreen(
             onCategoryChange = { viewModel.onAction(LibraryAction.OnSearchCategoryChange(it)) },
             onGridChange = { viewModel.onAction(LibraryAction.SetGridView(it)) },
             onResultClick = onSearchResultClick,
-            onIncrement = handleIncrement,
-            onEdit = handleEdit
+            onIncrement = { saveRecentSearch(); handleIncrement(it) },
+            onEdit = { saveRecentSearch(); handleEdit(it) },
+            onRecentSearch = { query ->
+                textFieldState.setTextAndPlaceCursorAtEnd(query)
+                focusManager.clearFocus()
+                viewModel.onAction(LibraryAction.OnSearch(query))
+            },
+            onRemoveRecentSearch = { viewModel.onAction(LibraryAction.RemoveRecentSearch(it)) },
+            onClearRecentSearches = { viewModel.onAction(LibraryAction.ClearRecentSearches) }
         )
     }
 
@@ -1099,6 +1111,7 @@ private fun LibrarySearchBarInputField(
     showListManagement: Boolean,
     onBackClick: () -> Unit,
     onClearClick: () -> Unit,
+    onSearch: () -> Unit,
     onToggleView: () -> Unit,
     onSort: () -> Unit,
     onOverflow: () -> Unit,
@@ -1115,7 +1128,10 @@ private fun LibrarySearchBarInputField(
         enabled = !showListManagement,
         searchBarState = searchBarState,
         textFieldState = textFieldState,
-        onSearch = { keyboardController?.hide() },
+        onSearch = {
+            onSearch()
+            keyboardController?.hide()
+        },
         placeholder = {
             Row(
                 verticalAlignment = Alignment.CenterVertically,

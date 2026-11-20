@@ -2,6 +2,7 @@ package com.anisync.android.presentation.discover
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.anisync.android.data.SearchSurface
 import com.anisync.android.domain.ADULT_GENRES
 import com.anisync.android.domain.AdultMode
 import com.anisync.android.domain.AiringEpisode
@@ -73,8 +74,16 @@ class DiscoverViewModel @Inject constructor(
         val query: String = "",
         val filterHash: Int = 0,
         /** Tells the Studios chip apart from a cleared search, which carries the same query and filters. */
-        val browsingStudios: Boolean = false
-    )
+        val browsingStudios: Boolean = false,
+        /** The search key or a recent search, which skip the pause that waits for typing to stop. */
+        val submitted: Boolean = false
+    ) {
+        fun isSameSearch(other: SearchTriggerState): Boolean =
+            copy(submitted = false) == other.copy(submitted = false)
+    }
+
+    /** The search the results on screen came from. */
+    private var lastRunTrigger = SearchTriggerState()
 
     init {
         observeSectionOrder()
@@ -84,6 +93,15 @@ class DiscoverViewModel @Inject constructor(
         observeViewMode()
         observeSearchLaunchRequests()
         observeTabReselect()
+        observeRecentSearches()
+    }
+
+    private fun observeRecentSearches() {
+        viewModelScope.launch {
+            appSettings.recentSearches(SearchSurface.DISCOVER).collect { recent ->
+                _uiState.update { it.copy(recentSearches = recent) }
+            }
+        }
     }
 
     /** The bottom bar's reselect gestures: scroll back to the top, or open the search overlay. */
@@ -179,6 +197,11 @@ class DiscoverViewModel @Inject constructor(
             is DiscoverAction.LoadTaxonomy -> loadTaxonomyIfNeeded()
             is DiscoverAction.OnViewModeChange -> appSettings.setDiscoverSearchViewMode(action.mode)
             is DiscoverAction.OnCategoryChange -> onCategoryChange(action.category)
+            is DiscoverAction.SaveRecentSearch ->
+                appSettings.addRecentSearch(SearchSurface.DISCOVER, action.query)
+            is DiscoverAction.RemoveRecentSearch ->
+                appSettings.removeRecentSearch(SearchSurface.DISCOVER, action.query)
+            is DiscoverAction.ClearRecentSearches -> appSettings.clearRecentSearches(SearchSurface.DISCOVER)
             is DiscoverAction.ReorderSections -> reorderSections(action.order)
             is DiscoverAction.SetSectionVisible -> setSectionVisible(action.section, action.visible)
             is DiscoverAction.ResetSectionOrder -> resetSectionOrder()
@@ -227,8 +250,14 @@ class DiscoverViewModel @Inject constructor(
 
     private fun onSearch(query: String) {
         val currentState = _uiState.value
-        _uiState.update { currentState.copy(searchQuery = query) }
-        searchTrigger.value = SearchTriggerState(query, currentState.searchFilters.hashCode())
+        val trigger = SearchTriggerState(query, currentState.searchFilters.hashCode(), submitted = true)
+        val submitted = currentState.copy(searchQuery = query)
+        // Spinning from the tap, since the request only starts a moment later and until then an
+        // empty result list reads as No results.
+        val startsSearch = submitted.shouldSearch() && !trigger.isSameSearch(lastRunTrigger)
+        _uiState.update { submitted.copy(isSearching = submitted.isSearching || startsSearch) }
+        searchTrigger.value = trigger
+        appSettings.addRecentSearch(SearchSurface.DISCOVER, query)
     }
 
     /**
@@ -350,9 +379,10 @@ class DiscoverViewModel @Inject constructor(
     private fun observeSearchQuery() {
         viewModelScope.launch {
             searchTrigger
-                .debounce(350L)
-                .distinctUntilChanged()
+                .debounce { if (it.submitted) 0L else 350L }
+                .distinctUntilChanged { old, new -> old.isSameSearch(new) }
                 .collectLatest { trigger ->
+                    lastRunTrigger = trigger
                     val currentState = _uiState.value
                     val query = currentState.searchQuery
                     val filters = currentState.searchFilters
@@ -363,7 +393,8 @@ class DiscoverViewModel @Inject constructor(
                                 searchAnime = emptyList(),
                                 searchManga = emptyList(),
                                 groupedResults = GroupedSearchResults(),
-                                isSearching = false
+                                isSearching = false,
+                                searchError = null
                             )
                         }
                         return@collectLatest

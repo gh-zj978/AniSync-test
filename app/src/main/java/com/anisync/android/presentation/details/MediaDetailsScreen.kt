@@ -13,6 +13,7 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -90,6 +91,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -113,6 +115,7 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
+import coil3.compose.rememberAsyncImagePainter
 import coil3.request.ImageRequest
 import coil3.request.crossfade
 import com.anisync.android.R
@@ -130,6 +133,8 @@ import com.anisync.android.presentation.components.bannerChromeContainer
 import com.anisync.android.presentation.components.bannerChromeTint
 import com.anisync.android.presentation.components.bannerScrimBrush
 import com.anisync.android.presentation.components.bannerScrimHeight
+import com.anisync.android.presentation.components.hiddenWhilePulled
+import com.anisync.android.presentation.components.shownWhilePulled
 import com.anisync.android.presentation.components.alert.rememberRateLimitedRefresh
 import com.anisync.android.presentation.components.SegmentedTabGroup
 import com.anisync.android.presentation.components.HeaderLevel
@@ -141,6 +146,7 @@ import com.anisync.android.presentation.components.UserAvatar
 import com.anisync.android.presentation.components.navigation.BackTrailButton
 import com.anisync.android.presentation.details.components.CharacterItem
 import com.anisync.android.presentation.details.components.ContentMetadataSection
+import com.anisync.android.presentation.details.components.DetailsSkeletonBanner
 import com.anisync.android.presentation.details.components.DetailsSkeletonContent
 import com.anisync.android.presentation.details.components.ExpandableSynopsis
 import com.anisync.android.presentation.details.components.ExternalLinksSection
@@ -489,13 +495,29 @@ fun MediaDetailsScreen(
                         }
                     }
                 ) { paddingValues ->
+                    // One request feeds the banner in the list and the copy a pull holds still behind it.
+                    val bannerPainter = rememberAsyncImagePainter(
+                        model = (uiState as? DetailsUiState.Success)?.details?.headerBanner,
+                        contentScale = ContentScale.Crop
+                    )
                     AppPullToRefreshBox(
                         isRefreshing = isRefreshing,
                         onRefresh = rememberRateLimitedRefresh { viewModel.refresh() },
                         modifier = Modifier
                             .fillMaxSize()
                             .padding(bottom = paddingValues.calculateBottomPadding()),
-                        topInset = WindowInsets.safeDrawing.asPaddingValues().calculateTopPadding()
+                        topInset = WindowInsets.safeDrawing.asPaddingValues().calculateTopPadding(),
+                        backdrop = {
+                            when (val state = uiState) {
+                                is DetailsUiState.Loading -> DetailsSkeletonBanner(Modifier.shownWhilePulled())
+                                is DetailsUiState.Success -> HeaderBanner(
+                                    details = state.details,
+                                    painter = bannerPainter,
+                                    modifier = Modifier.shownWhilePulled()
+                                )
+                                is DetailsUiState.Error -> Unit
+                            }
+                        }
                     ) {
                         // Note: We intentionally IGNORE top padding here to let the content
                         // (specifically the header image) draw behind the transparent status bar.
@@ -506,6 +528,7 @@ fun MediaDetailsScreen(
                                 val context = LocalContext.current
                                 DetailsPageContent(
                                     details = state.details,
+                                    bannerPainter = bannerPainter,
                                     sourceScreen = sourceScreen,
                                     listState = listState,
                                     selectedTab = selectedTab,
@@ -888,6 +911,7 @@ private fun DetailsTabsButtonGroup(
 @Composable
 fun DetailsPageContent(
     details: MediaDetails,
+    bannerPainter: Painter,
     sourceScreen: String,
     listState: LazyListState,
     selectedTab: DetailsTab,
@@ -1091,6 +1115,7 @@ fun DetailsPageContent(
             item(key = "header") {
                 PageHeaderSection(
                     details = details,
+                    bannerPainter = bannerPainter,
                     sourceScreen = sourceScreen,
                     sharedTransitionScope = sharedTransitionScope,
                     animatedVisibilityScope = animatedVisibilityScope,
@@ -1707,6 +1732,7 @@ private fun statusBarInset(): Dp =
 @Composable
 fun PageHeaderSection(
     details: MediaDetails,
+    bannerPainter: Painter,
     sourceScreen: String,
     sharedTransitionScope: SharedTransitionScope,
     animatedVisibilityScope: AnimatedVisibilityScope,
@@ -1717,7 +1743,6 @@ fun PageHeaderSection(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
-    val uriHandler = LocalUriHandler.current
 
     // --- Transition Keys ---
     val coverKey = remember(details.id) { TransitionKeys.cover(sourceScreen, details.id) }
@@ -1732,12 +1757,60 @@ fun PageHeaderSection(
     // --- UI Constants ---
     val spatialSpec = AppMotion.rememberSpatialSpec()
     val coverShape = RoundedCornerShape(dimensionResource(R.dimen.corner_radius_large))
-    val themeBackground = MaterialTheme.colorScheme.background
 
     // --- Data Preparation ---
     val displayTitle = remember(details, titleLanguage) { details.getTitle(titleLanguage) }
     val formattedScore = remember(details.score) { details.score?.asTenPointScore() }
 
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(headerHeight(details))
+    ) {
+        HeaderBanner(
+            details = details,
+            painter = bannerPainter,
+            modifier = Modifier.hiddenWhilePulled(),
+            onBannerClick = onBannerClick
+        )
+
+        // Content Row (Cover + Title + Metadata)
+        ContentRow(
+            details = details,
+            displayTitle = displayTitle,
+            formattedScore = formattedScore,
+            coverKey = coverKey,
+            titleKey = titleKey,
+            cacheKey = cacheKey,
+            coverShape = coverShape,
+            spatialSpec = spatialSpec,
+            sharedTransitionScope = sharedTransitionScope,
+            animatedVisibilityScope = animatedVisibilityScope,
+            onCoverClick = onCoverClick,
+            onScoreClick = onScoreClick
+        )
+    }
+}
+
+/**
+ * Nothing to show means no banner rather than the cover stretched across the top as a stand-in, so
+ * the header shrinks to the cover and the title. It carries the status-bar height so the artwork
+ * fills it and the rest stays put.
+ */
+@Composable
+private fun headerHeight(details: MediaDetails): Dp =
+    statusBarInset() + if (details.headerBanner != null) 330.dp else 250.dp
+
+/** What the header draws behind the cover and the title: the banner, its trailer chip and its fade. */
+@Composable
+private fun HeaderBanner(
+    details: MediaDetails,
+    painter: Painter,
+    modifier: Modifier = Modifier,
+    onBannerClick: (() -> Unit)? = null
+) {
+    val uriHandler = LocalUriHandler.current
+    val themeBackground = MaterialTheme.colorScheme.background
     val bannerModel = remember(details) { details.headerBanner }
 
     // Calculate if we need a custom crop ratio
@@ -1746,22 +1819,19 @@ fun PageHeaderSection(
         bannerModel != null && bannerModel == details.trailer?.thumbnail
     }
 
-    // The header carries the status-bar height so the artwork fills it and the rest stays put.
     val topInset = statusBarInset()
 
     Box(
         modifier = modifier
             .fillMaxWidth()
-            // Nothing to show means no banner rather than the cover stretched across the top as a
-            // stand-in, so the header shrinks to the cover and the title.
-            .height(topInset + if (bannerModel != null) 330.dp else 250.dp)
+            .height(headerHeight(details))
     ) {
         // 1. Banner Image Layer. Only real artwork opens the viewer: the trailer thumbnail that
         // stands in for a missing banner isn't in the viewer's list.
         if (bannerModel != null) {
             val isArtwork = details.bannerUrl != null
             BannerImage(
-                model = bannerModel,
+                painter = painter,
                 needsZoom = needsZoom,
                 contentDescription = if (isArtwork) stringResource(R.string.cd_media_banner)
                 else null,
@@ -1769,7 +1839,7 @@ fun PageHeaderSection(
                     .fillMaxWidth()
                     .height(topInset + BannerHeight)
                     .then(
-                        if (isArtwork) Modifier.clickable(onClick = onBannerClick)
+                        if (isArtwork && onBannerClick != null) Modifier.clickable(onClick = onBannerClick)
                         else Modifier
                     )
             )
@@ -1799,22 +1869,6 @@ fun PageHeaderSection(
         if (bannerModel != null) {
             BannerGradients(themeBackground = themeBackground)
         }
-
-        // 4. Content Row (Cover + Title + Metadata)
-        ContentRow(
-            details = details,
-            displayTitle = displayTitle,
-            formattedScore = formattedScore,
-            coverKey = coverKey,
-            titleKey = titleKey,
-            cacheKey = cacheKey,
-            coverShape = coverShape,
-            spatialSpec = spatialSpec,
-            sharedTransitionScope = sharedTransitionScope,
-            animatedVisibilityScope = animatedVisibilityScope,
-            onCoverClick = onCoverClick,
-            onScoreClick = onScoreClick
-        )
     }
 }
 
@@ -1823,7 +1877,7 @@ private fun Int.asTenPointScore(): String = String.format("%.1f", this / 10f)
 
 @Composable
 private fun BannerImage(
-    model: Any?,
+    painter: Painter,
     needsZoom: Boolean,
     modifier: Modifier = Modifier,
     contentDescription: String? = null
@@ -1851,8 +1905,8 @@ private fun BannerImage(
     }
 
     Box(modifier = modifier.clip(RectangleShape)) {
-        AsyncImage(
-            model = model,
+        Image(
+            painter = painter,
             contentDescription = contentDescription,
             contentScale = contentScale,
             alignment = Alignment.Center,

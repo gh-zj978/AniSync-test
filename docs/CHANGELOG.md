@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Search History** - Discover, Library and Forum search each remember the last ten things you searched for and list them while the search field is empty. A tap runs one again, the cross beside it forgets it, and Clear all forgets the lot. A search is kept once you press the search key or do something with one of its results. A switch under General turns it off, which also clears what was kept. (#174)
 - **Support AniSync** - Donate is now Support AniSync, in Settings and in About. One button buys a coffee on Ko-fi with GitHub Sponsors beside it, and a thank-you wall lists everyone who has left a tip on either, newest first. Starring, translating, reporting a bug and sharing the app sit below, for anyone who would rather help that way.
 
 ### Changed
@@ -19,8 +20,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Search Screens** - Discover and Library search now sit on the same surface as Forum search. Picking a category without filters, such as Users, no longer leaves its row of categories pressed against the line under the search field.
 - **Supporter List** - The list of supporters was always empty, because it only read current GitHub sponsorships. Tips left on Ko-fi now show up too.
 - **Building Recaps** - While Statistics built your first recaps it showed nothing but a spinner, for minutes on a long list, which looked stuck. It now says that the first build reads every list update since January of last year and that AniList's pace limit makes this take a few minutes, with a bar for how far back it has read. A build the phone stops part way carries on from what it had already read the next time, and one that fails waits on a Retry button instead of starting over on its own. (#187)
+- **Aired Dates** - On a narrow phone or at a larger display size, a title's Aired dates were cut off after two lines. A start and end date now take a row of their own in Information, and if they still have to wrap, they break between the two dates. A long hashtag such as #VINLAND_SAGA gets a row of its own too instead of breaking in the middle. (#188)
 
 ## [3.4.0] - 2026-11-11
 

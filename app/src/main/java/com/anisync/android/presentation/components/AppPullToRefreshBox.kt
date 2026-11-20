@@ -15,6 +15,7 @@ import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.LoadingIndicatorDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.derivedStateOf
@@ -24,6 +25,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithContent
@@ -43,6 +45,27 @@ import com.anisync.android.presentation.util.rememberHapticFeedback
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
+
+/** How far a pull has carried the content down, in pixels, to be read while drawing. */
+val LocalPullRefreshOffset = staticCompositionLocalOf<() -> Float> { { 0f } }
+
+/**
+ * For a banner a pull would carry down with the content. It steps aside for its copy in the
+ * [AppPullToRefreshBox] backdrop, marked [shownWhilePulled], which stays where it is. A pull only
+ * starts with the content at its top, where the two sit exactly over each other.
+ */
+@Composable
+fun Modifier.hiddenWhilePulled(): Modifier {
+    val pullOffset = LocalPullRefreshOffset.current
+    return graphicsLayer { alpha = if (pullOffset() > 0f) 0f else 1f }
+}
+
+/** For the backdrop copy of a banner marked [hiddenWhilePulled], seen only while a pull is under way. */
+@Composable
+fun Modifier.shownWhilePulled(): Modifier {
+    val pullOffset = LocalPullRefreshOffset.current
+    return graphicsLayer { alpha = if (pullOffset() > 0f) 1f else 0f }
+}
 
 /**
  * Pull to refresh with the Material 3 Expressive loading indicator.
@@ -64,6 +87,8 @@ fun AppPullToRefreshBox(
     topInset: Dp = 0.dp,
     enabled: Boolean = true,
     contentAlignment: Alignment = Alignment.TopStart,
+    /** Drawn behind the content and left where it is when a pull carries the content down. */
+    backdrop: (@Composable BoxScope.() -> Unit)? = null,
     content: @Composable BoxScope.() -> Unit,
 ) {
     val thresholdPx = with(LocalDensity.current) { PullThreshold.toPx() }
@@ -98,17 +123,21 @@ fun AppPullToRefreshBox(
         if (isRefreshing) state.showRefreshing() else state.hideRefreshing()
     }
 
+    val pullOffset = remember(state, thresholdPx) { { state.contentFraction * thresholdPx } }
     Box(
         modifier = modifier.nestedScroll(state),
         contentAlignment = contentAlignment,
     ) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .graphicsLayer { translationY = state.contentFraction * thresholdPx },
-            contentAlignment = contentAlignment,
-            content = content,
-        )
+        CompositionLocalProvider(LocalPullRefreshOffset provides pullOffset) {
+            backdrop?.invoke(this)
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer { translationY = pullOffset() },
+                contentAlignment = contentAlignment,
+                content = content,
+            )
+        }
         PullIndicator(
             state = state,
             isRefreshing = isRefreshing,
