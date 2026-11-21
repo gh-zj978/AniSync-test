@@ -26,7 +26,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.anisync.android.R
@@ -34,16 +36,16 @@ import com.anisync.android.presentation.components.result.ResultGroupHeader
 import com.anisync.android.presentation.util.bouncyClickable
 
 /**
- * What an empty search field offers: the searches run before, newest first. A tap runs one again,
- * a row's cross forgets it and Clear all forgets them all. Rows tile at the results' width on a
- * wide window.
+ * The searches run before, newest first. A tap runs one again, a row's cross forgets it and Clear
+ * all forgets them all. A list narrowed to what is being typed passes no [onClearAll], since it
+ * would clear more than it shows. Rows tile at the results' width on a wide window.
  */
 @Composable
 fun RecentSearches(
     searches: List<String>,
     onSearch: (String) -> Unit,
     onRemove: (String) -> Unit,
-    onClearAll: () -> Unit,
+    onClearAll: (() -> Unit)?,
     modifier: Modifier = Modifier
 ) {
     LazyVerticalGrid(
@@ -60,7 +62,13 @@ fun RecentSearches(
                     HeaderAction(
                         label = stringResource(R.string.search_recent_clear_all),
                         description = stringResource(R.string.a11y_search_recent_clear_all),
-                        onClick = onClearAll
+                        onClick = { onClearAll?.invoke() },
+                        // Hidden rather than left out, so narrowing the list does not move it.
+                        modifier = if (onClearAll == null) {
+                            Modifier.alpha(0f).clearAndSetSemantics {}
+                        } else {
+                            Modifier
+                        }
                     )
                 }
             )

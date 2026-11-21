@@ -42,15 +42,8 @@ private fun statusKind(status: String?): StatusKind {
 /** True for an activity that can add episodes or chapters. Plans, pauses and drops never do. */
 fun isCountable(status: String?): Boolean = statusKind(status) != StatusKind.OTHER
 
-/**
- * True for an activity that moves where a title's progress stands: a readable range, or a
- * completion. The last one before a period is all a completion inside it needs to see.
- */
-internal fun ListActivityRecord.movesProgress(): Boolean = when (statusKind(status)) {
-    StatusKind.PROGRESS, StatusKind.REPEAT_PROGRESS -> parseProgress(progress) != null
-    StatusKind.COMPLETED, StatusKind.REPEAT_COMPLETED -> true
-    StatusKind.OTHER -> false
-}
+/** The order [countEvents] reads activities in. */
+internal val recordOrder = compareBy<ListActivityRecord>({ it.createdAt }, { it.id })
 
 /**
  * The range a progress string covers. AniList logs one update as "5" and merges consecutive ones
@@ -68,57 +61,104 @@ fun parseProgress(progress: String?): IntRange? {
 /**
  * Turns activities into counted events, oldest first.
  *
+ * Each episode or chapter of a title counts once. A range only adds the units past the furthest one
+ * counted before it, because AniList can keep an update after merging it into a longer one, and
+ * logs a save sent twice as two activities. The second of those is skipped outright.
+ *
  * AniList logs the last episode of a series as a completion with no progress, so a completion adds
- * the units after the last one logged for that title, or one when nothing was logged before it
- * (the final episode, or a one-episode title). Without a known count that one has no range, so it
- * is neither a start nor an episode a theme song can be matched to. [totalUnits] is the title's
- * episode or chapter count.
- * Pass every activity known before the period too, so a completion can see what came before it.
+ * the units after the furthest one counted, or one when nothing was counted before it (the final
+ * episode, or a one-episode title). Without a known count that one has no range, so it is neither
+ * a start nor an episode a theme song can be matched to. [totalUnits] is the title's episode or
+ * chapter count.
+ *
+ * A completion ends the first watch. Progress logged after it is a rewatch, whatever AniList called
+ * it, and a completion with nothing rewatched since is the same finish saved again.
+ * Pass every activity known before the period too, so the period can see where each title stood.
  */
 fun countEvents(
     records: List<ListActivityRecord>,
     totalUnits: (mediaId: Int) -> Int?,
 ): List<CountedEvent> {
-    val lastLogged = HashMap<Int, Int>()
-    val events = ArrayList<CountedEvent>(records.size)
-    for (record in records.sortedWith(compareBy({ it.createdAt }, { it.id }))) {
+    val titles = HashMap<Int, TitleCount>()
+    return records.sortedWith(recordOrder).mapNotNull { record ->
+        titles.getOrPut(record.mediaId, ::TitleCount).count(record, totalUnits(record.mediaId)?.takeIf { it > 0 })
+    }
+}
+
+/** Where the count of one title stands, and the activities that put it there. */
+internal class TitleCount {
+    private var finished = false
+    private var reach: Int? = null
+    private var rewatchReach: Int? = null
+    private var previous: ListActivityRecord? = null
+    private var finishedBy: ListActivityRecord? = null
+    private var reachedBy: ListActivityRecord? = null
+    private var rewatchReachedBy: ListActivityRecord? = null
+
+    /** The activities a later period needs to carry on counting from here. */
+    val standing: List<ListActivityRecord>
+        get() = listOfNotNull(if (finished) finishedBy else reachedBy, rewatchReachedBy)
+
+    /** What [record] adds, or null when it is no update that counts at all. */
+    fun count(record: ListActivityRecord, total: Int?): CountedEvent? {
         val kind = statusKind(record.status)
-        val total = totalUnits(record.mediaId)?.takeIf { it > 0 }
-        when (kind) {
-            StatusKind.PROGRESS, StatusKind.REPEAT_PROGRESS -> {
-                val range = parseProgress(record.progress)
-                range?.let { lastLogged[record.mediaId] = it.last }
-                events += record.toEvent(
-                    units = range?.let { it.last - it.first + 1 } ?: 1,
-                    range = range,
-                    isRepeat = kind == StatusKind.REPEAT_PROGRESS,
-                    isCompletion = false,
-                )
+        if (kind == StatusKind.OTHER) return null
+        val sentTwice = previous?.let {
+            it.createdAt == record.createdAt && it.status == record.status && it.progress == record.progress
+        } == true
+        previous = record
+        if (sentTwice) return null
+        return when (kind) {
+            StatusKind.PROGRESS -> watch(record, rewatch = finished)
+            StatusKind.REPEAT_PROGRESS -> watch(record, rewatch = true)
+            StatusKind.COMPLETED -> when {
+                !finished -> finish(record, total, rewatch = false)
+                rewatchReach != null -> finish(record, total, rewatch = true)
+                else -> record.toEvent(units = 0, range = null, isRepeat = false, isCompletion = false)
             }
-            StatusKind.COMPLETED, StatusKind.REPEAT_COMPLETED -> {
-                val previous = lastLogged[record.mediaId]
-                val units: Int
-                val range: IntRange?
-                if (previous != null && total != null) {
-                    units = (total - previous).coerceAtLeast(0)
-                    range = if (units > 0) (previous + 1)..total else null
-                } else {
-                    units = 1
-                    range = total?.let { it..it }
-                }
-                total?.let { lastLogged[record.mediaId] = it }
-                events += record.toEvent(
-                    units = units,
-                    range = range,
-                    isRepeat = kind == StatusKind.REPEAT_COMPLETED,
-                    isCompletion = true,
-                )
-            }
-            StatusKind.OTHER -> Unit
+            StatusKind.REPEAT_COMPLETED -> finish(record, total, rewatch = true)
+            StatusKind.OTHER -> null
         }
     }
-    return events
+
+    private fun watch(record: ListActivityRecord, rewatch: Boolean): CountedEvent {
+        val range = parseProgress(record.progress)
+            ?: return record.toEvent(units = 1, range = null, isRepeat = rewatch, isCompletion = false)
+        val counted = if (rewatch) rewatchReach else reach
+        if (counted == null || range.last > counted) {
+            if (rewatch) {
+                rewatchReach = range.last
+                rewatchReachedBy = record
+            } else {
+                reach = range.last
+                reachedBy = record
+            }
+        }
+        val fresh = maxOf(range.first, (counted ?: 0) + 1)..range.last
+        return record.toEvent(units = fresh.units, range = fresh.takeUnless { it.isEmpty() }, isRepeat = rewatch, isCompletion = false)
+    }
+
+    private fun finish(record: ListActivityRecord, total: Int?, rewatch: Boolean): CountedEvent {
+        val counted = if (rewatch) rewatchReach else reach
+        val rest = if (counted != null && total != null) (counted + 1)..total else null
+        if (rewatch) {
+            rewatchReach = null
+            rewatchReachedBy = null
+        }
+        if (!finished) {
+            finished = true
+            finishedBy = record
+        }
+        return record.toEvent(
+            units = rest?.units ?: 1,
+            range = if (rest != null) rest.takeUnless { it.isEmpty() } else total?.let { it..it },
+            isRepeat = rewatch,
+            isCompletion = true,
+        )
+    }
 }
+
+private val IntRange.units: Int get() = if (isEmpty()) 0 else last - first + 1
 
 private fun ListActivityRecord.toEvent(units: Int, range: IntRange?, isRepeat: Boolean, isCompletion: Boolean) =
     CountedEvent(
