@@ -253,8 +253,6 @@ class LibraryViewModel @Inject constructor(
                 _uiState.update { it.copy(activeSearchCategory = action.currentTabId) }
             }
 
-            is LibraryAction.SaveRecentSearch ->
-                appSettings.addRecentSearch(SearchSurface.LIBRARY, action.query)
             is LibraryAction.RemoveRecentSearch ->
                 appSettings.removeRecentSearch(SearchSurface.LIBRARY, action.query)
             is LibraryAction.ClearRecentSearches -> appSettings.clearRecentSearches(SearchSurface.LIBRARY)
